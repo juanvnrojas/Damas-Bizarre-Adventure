@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Damas Bizarre Adventure</title>
+<style>
+:root{--bg:#f4efe6;--fg:#222;--pn:#fff;--bd:#c9bfae;--mu:#666;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1e1e1e;--fg:#eee;--pn:#2a2a2a;--bd:#444;--mu:#aaa}}
+:root[data-theme="dark"]{--bg:#1e1e1e;--fg:#eee;--pn:#2a2a2a;--bd:#444;--mu:#aaa}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;min-height:100vh}
+#stage{--s:min(56px,8.4vw);display:flex;flex-direction:column;align-items:center;padding:16px 8px 24px;min-height:100vh;filter:var(--f,none);transition:filter .4s}
+#stage.frozen{--f:grayscale(1) contrast(1.2)}
+#stage.bw{--f:grayscale(1) contrast(1.3)}#stage.inv{--f:invert(1) hue-rotate(180deg)}
+#stage.gold{--f:sepia(1) saturate(4) hue-rotate(-15deg)}#stage.red{--f:sepia(1) saturate(5) hue-rotate(-50deg)}
+#stage.blue{--f:sepia(1) saturate(4) hue-rotate(150deg)}#stage.green{--f:sepia(1) saturate(4) hue-rotate(60deg)}
+#stage.pink{--f:sepia(1) saturate(4) hue-rotate(290deg)}#stage.sepia{--f:sepia(1) contrast(1.1)}
+#stage.steel{--f:saturate(.3) hue-rotate(170deg) brightness(1.1)}#stage.dark{--f:brightness(.5) saturate(.6)}
+#stage.hue{--f:hue-rotate(120deg) saturate(2)}
+h1{margin:0 0 6px;font-size:22px}
+#stt{min-height:40px;max-width:620px;text-align:center;font-weight:700;font-size:15px;margin:4px 0 8px}
+#bw{position:relative;width:calc(var(--s)*10);height:calc(var(--s)*10);box-shadow:0 0 0 4px #000,0 8px 30px #000a;border-radius:2px}
+#board{display:grid;grid-template-columns:repeat(10,var(--s));grid-template-rows:repeat(10,var(--s))}
+#pl{position:absolute;inset:0;pointer-events:none}
+.cell{position:relative}.cell.l{background:#f0d9b5}.cell.d{background:#8b5a2b;cursor:pointer}
+.cell.sel{box-shadow:inset 0 0 0 4px #ffeb3b}.cell.last{box-shadow:inset 0 0 0 3px #78c8ffa6}
+.cell.mv::after{content:"";position:absolute;inset:36%;border-radius:50%;background:#ffeb3bd9}
+.cell.cp::after{content:"";position:absolute;inset:14%;border-radius:50%;border:3px solid #f44336}
+.cell.tg{box-shadow:inset 0 0 0 3px #00e5ff;cursor:crosshair;animation:tg 1s infinite}
+@keyframes tg{50%{background:#4a7a9a}}
+.cell.tm::before{content:"✖";position:absolute;inset:0;display:grid;place-items:center;font-size:calc(var(--s)*.45);color:#ff5252;animation:tg 1.2s infinite}
+.pc{position:absolute;left:0;top:0;width:var(--s);height:var(--s);display:grid;place-items:center;transform:translate(calc(var(--c)*var(--s)),calc(var(--r)*var(--s)));transition:transform .3s cubic-bezier(.3,.8,.3,1),opacity .4s}
+.in{position:relative;width:76%;height:76%;border-radius:50%;display:grid;place-items:center;font-size:calc(var(--s)*.42);box-shadow:0 3px 6px #0008}
+.in b{font-weight:400;line-height:1}
+.in u{position:absolute;right:-5px;bottom:-6px;font-size:calc(var(--s)*.26);text-decoration:none;white-space:nowrap}
+.pc.w .in{background:radial-gradient(circle at 32% 30%,#fff,#e8e8e8 40%,#b0b0b0);border:2px solid #777;color:#c9a227}
+.pc.b .in{background:radial-gradient(circle at 32% 30%,#5a5a5a,#333 40%,#0a0a0a);border:2px solid #000;color:#ffd700}
+.pc.K .in{box-shadow:0 0 0 2px gold,0 0 12px gold}
+.pc.forced .in{outline:3px dashed #ce93d8;outline-offset:2px}
+.pc.trap .in{filter:saturate(.2);border-style:dashed}
+.pc.die{opacity:0;transform:translate(calc(var(--c)*var(--s)),calc(var(--r)*var(--s))) scale(.2) rotate(180deg)}
+.pc.hop{z-index:6}.pc.hop .in{animation:hop .32s}
+@keyframes hop{50%{transform:scale(1.45)}}
+.pc.born .in{animation:born .5s}@keyframes born{from{transform:scale(0)}}
+.bu{position:absolute;width:var(--s);height:var(--s);border-radius:50%;border:4px solid #ffd54f;animation:bu .6s ease-out forwards;z-index:9}
+.bu.big{border-color:#ff5722;background:radial-gradient(#fff,#ff9800,#0000)}
+@keyframes bu{to{transform:scale(2.6);opacity:0;border-width:0}}
+.shake{animation:shake .45s}
+@keyframes shake{25%{transform:translate(-6px,3px)}50%{transform:translate(6px,-3px)}75%{transform:translate(-3px,-3px)}}
+.cmb{position:absolute;left:50%;top:40%;transform:translateX(-50%);font:900 clamp(28px,8vw,56px) Impact,sans-serif;color:#ffd54f;text-shadow:3px 3px #b71c1c;z-index:20;pointer-events:none;white-space:nowrap;animation:cmb 1.2s forwards}
+@keyframes cmb{0%{transform:translateX(-50%) scale(.3);opacity:0}20%{transform:translateX(-50%) scale(1.2);opacity:1}100%{transform:translateX(-50%) translateY(-60px);opacity:0}}
+#ov{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;pointer-events:none;z-index:50;background:radial-gradient(#0000,#000b)}
+#ov.on{display:flex}
+#ov b{font:900 clamp(26px,8vw,64px)/1 Impact,sans-serif;color:var(--ac);text-shadow:3px 3px #000,-3px -3px #000;letter-spacing:2px;animation:pop .5s forwards}
+#ov i{margin-top:10px;font-size:clamp(13px,3.5vw,20px);color:#fff;text-shadow:0 2px 4px #000}
+@keyframes pop{0%{transform:scale(3) skew(-8deg);opacity:0}60%{transform:scale(.9) skew(-8deg);opacity:1}100%{transform:scale(1) skew(-8deg)}}
+.ctl{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+button{padding:10px 18px;font-size:14px;font-weight:600;border:0;border-radius:6px;background:#4caf50;color:#fff;cursor:pointer}
+button:disabled{background:#777 !important;cursor:not-allowed}
+button#ub{background:#9c27b0}
+button#cb{background:#e53935}
+#ask{margin-top:10px;padding:10px 14px;border-radius:8px;background:var(--pn);border:2px solid #ff9800;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:620px}
+#ask[hidden],#cb[hidden]{display:none}
+#sp{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:14px;max-width:760px}
+.pn{background:var(--pn);border:1px solid var(--bd);border-radius:8px;padding:10px 14px;width:min(340px,92vw)}
+.pn.me{border-color:#9c27b0}.pn.ai{border-color:#f44336}
+.pn small{color:var(--mu);font-size:12px}.pn strong{display:block;margin:3px 0;font-size:15px}.pn span{font-size:12px;color:var(--mu);line-height:1.35}
+.pn.me strong{color:#ab47bc}.pn.ai strong{color:#e53935}.used{text-decoration:line-through;opacity:.5}
+.ft{margin-top:12px;font-size:12px;color:var(--mu);text-align:center;max-width:620px}
+</style>
+</head>
+<body>
+<div id="stage">
+<h1>♟ Damas Bizarre Adventure</h1>
+<div id="stt"></div>
+<div id="bw"><div id="board"></div><div id="pl"></div></div>
+<div id="ask" hidden><span id="aq"></span><button id="ay">Usar</button><button id="an" style="background:#777">Ignorar</button></div>
+<div class="ctl"><button id="ng">Novo Jogo</button><button id="ub" disabled>Usar Stand</button><button id="cb" hidden>Cancelar</button></div>
+<div id="sp">
+<div class="pn me"><small>SEU STAND</small><strong id="pn"></strong><span id="pd"></span></div>
+<div class="pn ai"><small>STAND DA IA</small><strong id="en"></strong><span id="ed"></span></div>
+</div>
+<div class="ft">Você joga com as brancas (embaixo). Captura obrigatória pela maioria. Bombas da IA ficam ocultas.</div>
+</div>
+<div id="ov"></div>
+
+<script>
+(function() {
+  'use strict';
+  
+  // Utilizando byId ao invés de $ para evitar conflito com jQuery ou plugins de sites
+  const byId = i => document.getElementById(i);
+  const D = [[-1,-1],[-1,1],[1,-1],[1,1]];
+  const sleep = t => new Promise(r => setTimeout(r, t));
+  const ok = (y,x) => y>=0 && y<10 && x>=0 && x<10;
+  const opp = s => s==='w' ? 'b' : 'w';
+  const rnd = a => a[Math.random() * a.length | 0];
+  const sg = Math.sign;
+  
+  const dk = n => ((n/10|0)+n%10)%2===1;
+  const pc = n => G[n/10|0][n%10];
+  const dg = (a,b) => a!==b && Math.abs((a/10|0)-(b/10|0)) === Math.abs(a%10-b%10);
+  
+  const ownP = m => n => { const p = pc(n); return !!p && p.s === m; };
+  const enP = m => n => { const p = pc(n); return !!p && p.s !== m; };
+  
+  const boardEl = byId('board'), plEl = byId('pl'), ovEl = byId('ov'), stageEl = byId('stage');
+  const sttEl = byId('stt'), ubEl = byId('ub'), cbEl = byId('cb'), askEl = byId('ask');
+  const bwEl = byId('bw');
+  
+  const ST = [
+    [1,'Star Platinum — Time Stop','Uma vez: 2 jogadas seguidas neste turno.','bw','#fff'],
+    [2,'Crazy Diamond — Restauração','Uma vez: ao ter peça capturada, restaura-a na sua 1ª fileira.','pink','#ff80ab'],
+    [3,'Killer Queen — Primeira Bomba','Passiva: uma peça sua tem bomba oculta. Se capturada, explode o capturador.','red','#ff5252'],
+    [4,'King Crimson — Apagar o Tempo','Passiva: você pode ignorar a captura obrigatória.','red','#ff1744'],
+    [5,'Gold Experience Requiem — Retorno ao Zero','Uma vez: anula captura múltipla ou promoção inimiga e passa a vez para você.','gold','#ffd740'],
+    [6,'Sticky Fingers — Zíper Dimensional','Uma vez: sua peça atravessa peças e pousa em casa vaga da mesma diagonal.','steel','#40c4ff'],
+    [7,'Made in Heaven — Aceleração do Destino','Uma vez: por 1 turno, suas peças comuns movem como Damas.','hue','#ffee58'],
+    [8,'Heaven’s Door — Escrita de Comando','Uma vez: obriga o inimigo a mover uma peça (até fogo amigo).','sepia','#d7ccc8'],
+    [9,'D4C — Troca de Universo','Uma vez: troca duas peças de posição no tabuleiro.','inv','#b388ff'],
+    [10,'Tusk — Rotação Infinita','Uma vez: destrói à distância uma peça inimiga na mesma diagonal.','gold','#ffca28'],
+    [11,'Wonder of U — Fluxo da Calamidade','Uma vez: anula captura inimiga e destrói o atacante.','dark','#bdbdbd'],
+    [12,'Soft & Wet — Remoção de Fricção','Uma vez: peça inimiga desliza pela diagonal; se chegar à base dela, morre.','blue','#4fc3f7'],
+    [13,'Whitesnake — Extração de DISC','Uma vez: rouba o Stand inimigo (pronto); ele sorteia outro.','steel','#eee'],
+    [14,'The Hand — Corte Espacial','Uma vez: puxa peça inimiga para a casa adjacente à sua (mesma diagonal).','red','#ff5252'],
+    [15,'Super Fly — Armadilha de Aço','Uma vez: marca casa vaga; peça que parar nela fica presa (só captura).','steel','#90caf9'],
+    [16,'The World — Paralisação Temporal','Uma vez: o adversário pula o próximo turno.','inv','#ffd600'],
+    [17,'Cheap Trick — Parasita Neutro','Passiva: uma peça tem parasita 🦠; quem pousar atrás dela a destrói e herda.','green','#9ccc65'],
+    [18,'November Rain — Esmagamento Gravitacional','Uma vez: Dama inimiga rebaixa; comum recua 1 casa (destruída se bloqueada).','dark','#90a4ae'],
+    [19,'Bites the Dust — Rebobinar o Destino','Uma vez: todas as peças voltam às bases; você joga em seguida.','sepia','#ff5252'],
+    [20,'Harvest — Avanço do Enxame','Uma vez: até 3 peças comuns avançam 1 casa (não consome a jogada).','green','#aed581']
+  ].map(([id,name,desc,fx,col]) => ({id,name,desc,fx,col}));
+  
+  const PAS = [3,4,17], REA = [2,5,11], SB = id => ST[id-1];
+  let S, P, G, L=[], sel=null, tg=null, busy=0, turn='w', over=0, last=[], turnN=0, ALLY=0, CE=[], gameId=0;
+  const sid = s => S.st[s].id;
+  
+  // Criando as celulas de forma blindada
+  for(let n=0; n<100; n++){
+    const e = document.createElement('div');
+    e.className = 'cell ' + (dk(n) ? 'd' : 'l');
+    e.onclick = () => click(n);
+    boardEl.appendChild(e);
+    CE.push(e);
+  }
+
+  /* ---------- regras ---------- */
+  const ek = p => p.k || S.mih[p.s];
+  const fr = (y,x,p) => !G[y][x] || G[y][x]===p;
+
+  function seq(p, r, c, tk, path, out){
+    let f=0; 
+    const k=ek(p);
+    for(const [dr,dc] of D){
+      let y=r+dr, x=c+dc;
+      if(k) while(ok(y,x) && fr(y,x,p)) { y+=dr; x+=dc; }
+      if(!ok(y,x)) continue;
+      const q = G[y][x];
+      if(!q || q===p || tk.includes(q) || (ALLY ? q.s!==p.s : q.s===p.s)) continue;
+      if(q.trap){
+        f=1;
+        out.push({path:[...path,[y,x]], tk:[...tk,q]});
+        continue;
+      }
+      let ly=y+dr, lx=x+dc;
+      while(ok(ly,lx) && fr(ly,lx,p)){
+        f=1;
+        seq(p, ly, lx, [...tk,q], [...path,[ly,lx]], out);
+        if(!k) break;
+        ly+=dr; lx+=dc;
+      }
+    }
+    if(!f && tk.length) out.push({path,tk});
+  }
+
+  function capsOf(p){
+    const o=[]; 
+    seq(p, p.r, p.c, [], [[p.r,p.c]], o); 
+    return o.map(x=>({p, path:x.path, to:x.path[x.path.length-1], taken:x.tk}));
+  }
+
+  function simple(p){
+    const o=[], k=ek(p);
+    for(const [dr,dc] of D){
+      if(!k && dr!==(p.s==='w'?-1:1)) continue;
+      let y=p.r+dr, x=p.c+dc;
+      while(ok(y,x) && !G[y][x]){
+        o.push({p, path:[[p.r,p.c],[y,x]], to:[y,x], taken:[]});
+        if(!k) break;
+        y+=dr; x+=dc;
+      }
+    }
+    return o;
+  }
+
+  function fmoves(p){
+    if(p.trap) return [];
+    ALLY=1; const a=capsOf(p); ALLY=0; 
+    if(a.length) return a; 
+    return [...capsOf(p), ...simple(p)];
+  }
+
+  function legal(c){
+    const ps = P.filter(p => p.alive && p.s===c);
+    const f = S.forced[c];
+    if(f){
+      if(f.alive){
+        const m = fmoves(f);
+        if(m.length) return m;
+      }
+      S.forced[c]=null;
+    }
+    
+    // Fallback pra flatMap para evitar crash em browsers ou celulares antigos
+    let cp = ps.filter(p => !p.trap).map(p => capsOf(p)).reduce((a, b) => a.concat(b), []);
+    const mx = Math.max(0, ...cp.map(m => m.taken.length));
+    cp = cp.filter(m => m.taken.length === mx);
+    
+    const sm = ps.filter(p => !p.trap).map(simple).reduce((a, b) => a.concat(b), []);
+    return cp.length && sid(c)!==4 ? cp : [...cp, ...sm];
+  }
+
+  function sim(m,f){
+    const p=m.p, o=[p.r,p.c,p.k]; 
+    G[p.r][p.c]=null; 
+    m.taken.forEach(q=>{G[q.r][q.c]=null; q.alive=0;});
+    
+    [p.r,p.c]=m.to; 
+    G[p.r][p.c]=p; 
+    if(p.r===(p.s==='w'?0:9)) p.k=1;
+    
+    const v=f(); 
+    
+    G[p.r][p.c]=null; 
+    [p.r,p.c,p.k]=o; 
+    G[p.r][p.c]=p; 
+    m.taken.forEach(q=>{q.alive=1; G[q.r][q.c]=q;});
+    return v;
+  }
+
+  function aiPick(ms){
+    let b=-1e9, bm=ms[0];
+    for(const m of ms){
+      const foe = m.taken.every(q=>q.s!==m.p.s) ? 1 : -1;
+      const s = sim(m, () => -3 * Math.max(0, ...legal('w').map(x=>x.taken.length))) 
+                + 3*m.taken.length*foe + (m.p.k?0:m.to[0]*.2) + (!m.p.k&&m.to[0]===9?2:0) + Math.random()*.7;
+      if(s>b){b=s; bm=m;}
+    }
+    return bm;
+  }
+
+  /* ---------- render e efeitos ---------- */
+  function mkEl(s){
+    const e = document.createElement('div');
+    e.className = 'pc ' + s;
+    e.innerHTML = '<div class="in"><b></b><u></u></div>';
+    return e;
+  }
+
+  function sync(){
+    P.forEach(p => {
+      const e = p.el;
+      if(p.alive){
+        if(!e.parentNode){
+          plEl.appendChild(e);
+          e.classList.add('born');
+          setTimeout(() => e.classList.remove('born'), 500);
+        }
+        e.classList.remove('die');
+        e.style.setProperty('--r', p.r);
+        e.style.setProperty('--c', p.c);
+        e.classList.toggle('K', !!p.k);
+        e.classList.toggle('trap', !!p.trap);
+        e.classList.toggle('forced', S.forced[p.s]===p);
+        e.querySelector('b').textContent = p.k ? '♛' : '';
+        e.querySelector('u').textContent = (p.bomb && p.s==='w' ? '💣' : '') + (p.para ? '🦠' : '') + (p.trap ? '⛓️' : '');
+      } else if(e.parentNode && !e.classList.contains('die')){
+        e.classList.add('die');
+        setTimeout(() => { if(!p.alive && e.parentNode) e.parentNode.removeChild(e) }, 450);
+      }
+    });
+  }
+
+  function paint(){
+    CE.forEach((e,n) => {
+      if(!dk(n)) return;
+      const c = e.classList;
+      const m = L.find(x => x.p===sel && x.to[0]*10+x.to[1]===n);
+      c.toggle('sel', !!sel && sel.r*10+sel.c===n);
+      c.toggle('mv', !!m && !m.taken.length);
+      c.toggle('cp', !!m && m.taken.length>0);
+      c.toggle('tg', !!tg && tg.f(n));
+      c.toggle('last', last.includes(n));
+      c.toggle('tm', S.trapSq===n && !pc(n));
+    });
+  }
+
+  function burst(r,c,cls=''){
+    const e = document.createElement('div');
+    e.className = 'bu ' + cls;
+    e.style.cssText = `left:calc(${c}*var(--s));top:calc(${r}*var(--s))`;
+    plEl.appendChild(e);
+    setTimeout(() => { if(e.parentNode) e.parentNode.removeChild(e); }, 700);
+  }
+
+  function shake(){
+    bwEl.classList.add('shake');
+    setTimeout(() => bwEl.classList.remove('shake'), 500);
+  }
+
+  function combo(n){
+    const e = document.createElement('div');
+    e.className = 'cmb';
+    e.textContent = `×${n} COMBO!`;
+    bwEl.appendChild(e);
+    setTimeout(() => { if(e.parentNode) e.parentNode.removeChild(e); }, 1250);
+  }
+
+  function hop(p){
+    sync();
+    p.el.classList.add('hop');
+    setTimeout(() => p.el.classList.remove('hop'), 320);
+  }
+
+  async function sc(me,id,ms=1300){
+    const s = SB(id), [a,b] = s.name.split(' — ');
+    ovEl.style.setProperty('--ac', s.col);
+    ovEl.innerHTML = `<b>${a.toUpperCase()}</b><i>${me==='b'?'🤖 IA — ':''}${b||''}</i>`;
+    ovEl.className = 'on';
+    stageEl.classList.add(s.fx);
+    await sleep(ms);
+    ovEl.className = '';
+    stageEl.classList.remove(s.fx);
+  }
+
+  const fz = on => stageEl.classList.toggle('frozen', !!on);
+
+  function btn(){
+    const s=S.st.w, e=S.st.b;
+    byId('pn').textContent = s.name;
+    byId('pd').textContent = s.desc;
+    byId('en').textContent = e.name;
+    byId('ed').textContent = e.desc;
+    
+    byId('pn').classList.toggle('used', !!S.used.w && !PAS.includes(s.id));
+    byId('en').classList.toggle('used', !!S.used.b && !PAS.includes(e.id));
+    
+    let t='Aguarde…', d=1;
+    if(PAS.includes(s.id)) t='Passiva';
+    else if(REA.includes(s.id)) t = S.used.w ? 'Já usado' : 'Reativa (automática)';
+    else if(S.used.w) t = 'Já usado';
+    else if(turn==='w' && !busy && !over){ t = 'Ativar ' + s.name.split(' — ')[0]; d=0; }
+    
+    ubEl.disabled = d;
+    ubEl.textContent = t;
+  }
+
+  function status(){
+    if(!tg && !over){
+      let t = turn==='w' ? (busy ? '…' : '♙ Sua vez (brancas)') : '🤔 IA pensando…';
+      if(S.ex.w) t+=' ⏱ Tempo parado!';
+      if(S.mih.w) t+=' ✨ Peças movem como Damas!';
+      if(turn==='w' && !busy && L.length && L[0].taken.length) 
+        t += sid('w')===4 ? ' (captura opcional: King Crimson)' : ' — captura obrigatória';
+      sttEl.textContent = t;
+    }
+    btn();
+  }
+
+  /* ---------- escolhas e perguntas ---------- */
+  function ch(me,msg,f,opt){
+    const c=[]; 
+    for(let n=0; n<100; n++) if(dk(n) && f(n)) c.push(n);
+    if(!c.length){
+      if(me==='w' && !opt){
+        sttEl.textContent = 'Sem alvos válidos para este Stand.';
+        setTimeout(status, 1800);
+      }
+      return Promise.resolve(opt ? -1 : null);
+    }
+    if(me==='b') return Promise.resolve(opt && Math.random()<.35 ? -1 : rnd(c));
+    return new Promise(res => {
+      tg = {f, res, opt};
+      sttEl.textContent = msg;
+      cbEl.hidden = false;
+      cbEl.textContent = opt ? 'Concluir' : 'Cancelar';
+      paint();
+    });
+  }
+
+  cbEl.onclick = () => {
+    if(tg){
+      const t = tg; tg = null;
+      cbEl.hidden = true;
+      paint();
+      t.res(t.opt ? -1 : null);
+    }
+  };
+
+  function want(me,q){
+    if(me==='b') return Promise.resolve(Math.random()<.85);
+    return new Promise(r => {
+      byId('aq').textContent = q;
+      askEl.hidden = false;
+      byId('ay').onclick = () => { askEl.hidden = true; r(1); };
+      byId('an').onclick = () => { askEl.hidden = true; r(0); };
+    });
+  }
+
+  /* ---------- stands ativos ---------- */
+  const slide = (p,dr,dc) => {
+    let y=p.r+dr, x=p.c+dc, l=null;
+    while(ok(y,x) && !G[y][x]){ l = y*10+x; y+=dr; x+=dc; }
+    return l;
+  };
+  
+  const zip = n => {
+    const p=pc(n), o=[];
+    for(const [dr,dc] of D){
+      let y=p.r+dr, x=p.c+dc, b=0;
+      while(ok(y,x)){
+        if(G[y][x]) b=1;
+        else if(b) o.push(y*10+x);
+        y+=dr; x+=dc;
+      }
+    }
+    return o;
+  };
+  
+  const tgt = (a,n) => {
+    const y=a/10|0, x=a%10, t=(y+sg((n/10|0)-y))*10+x+sg(n%10-x);
+    return t!==n && !pc(t) ? t : null;
+  };
+  
+  const fw = p => [p.c-1, p.c+1].map(c => [p.r+(p.s==='w'?-1:1), c]).filter(([y,x]) => ok(y,x) && !G[y][x]).map(([y,x]) => y*10+x);
+
+  function land(p){ if(S.trapSq === p.r*10+p.c) p.trap = 1; }
+  function put(p,n){ G[p.r][p.c]=null; p.r=n/10|0; p.c=n%10; G[p.r][p.c]=p; land(p); }
+  function crown(p){ if(p.alive && !p.k && p.r===(p.s==='w'?0:9)) p.k=1; }
+  function kill(q){ if(G[q.r][q.c]===q) G[q.r][q.c]=null; q.alive=0; }
+  const dirTo = (p,b) => [sg((b/10|0)-p.r), sg(b%10-p.c)];
+
+  function setSt(m,s,u){
+    S.st[m]=s; S.used[m]=u;
+    P.forEach(p => { if(p.s===m) p.bomb=0; });
+    const a = P.filter(p => p.alive);
+    if(s.id===3){ const t=a.filter(p=>p.s===m); if(t.length) rnd(t).bomb=1; }
+    if(s.id===17 && !a.some(p=>p.para)) rnd(a).para=1;
+  }
+
+  const R = {
+    1: async m => { await sc(m,1); S.ex[m]=1; fz(1); return 1; },
+    6: async m => {
+      const a = await ch(m,'Sticky Fingers: escolha uma peça sua.', n => ownP(m)(n) && zip(n).length>0); 
+      if(a==null) return 0;
+      const b = await ch(m,'Escolha a casa vaga após o bloqueio.', n => zip(a).includes(n)); 
+      if(b==null) return 0;
+      await sc(m,6); const p=pc(a); put(p,b); crown(p); return 1; 
+    },
+    7: async m => { await sc(m,7); S.mih[m]=1; return 1; },
+    8: async m => {
+      const a = await ch(m,'Heaven’s Door: escolha a peça inimiga para controlar.', n => enP(m)(n) && fmoves(pc(n)).length>0);
+      if(a==null) return 0;
+      const piece = pc(a);
+      const enemyCaps = capsOf(piece);
+      ALLY=1; const friendlyCaps = capsOf(piece); ALLY=0;
+      const simpleMoves = simple(piece);
+      const allMoves = [...friendlyCaps, ...enemyCaps, ...simpleMoves];
+      if(!allMoves.length) return 0;
+      const b = await ch(m,'Heaven’s Door: escolha o destino da peça controlada.', n => allMoves.some(mv => mv.to[0]*10+mv.to[1]===n), true);
+      if(b==null||b<0) return 0;
+      await sc(m,8);
+      const move = allMoves.find(mv => mv.to[0]*10+mv.to[1]===b);
+      await play(move);
+      last = [move.path[0][0]*10+move.path[0][1], move.to[0]*10+move.to[1]];
+      sync(); paint();
+      return 1;
+    },
+    9: async m => {
+      const a = await ch(m,'D4C: escolha a 1ª peça.', n => !!pc(n)); if(a==null) return 0;
+      const b = await ch(m,'Escolha a 2ª peça.', n => !!pc(n) && n!==a); if(b==null) return 0;
+      await sc(m,9); const x=pc(a), y=pc(b);
+      G[x.r][x.c]=y; G[y.r][y.c]=x;
+      [x.r, x.c, y.r, y.c] = [y.r, y.c, x.r, x.c];
+      crown(x); crown(y); land(x); land(y); return 1; 
+    },
+    10: async m => {
+      const a = await ch(m,'Tusk: escolha sua peça.', n => ownP(m)(n) && P.some(q => q.alive && q.s!==m && dg(n, q.r*10+q.c))); if(a==null) return 0;
+      const b = await ch(m,'Escolha o inimigo na mesma diagonal.', n => enP(m)(n) && dg(a,n)); if(b==null) return 0;
+      await sc(m,10); const q=pc(b); burst(q.r, q.c, 'big'); kill(q); return 1; 
+    },
+    12: async m => {
+      const a = await ch(m,'Soft & Wet: escolha a peça inimiga.', n => enP(m)(n) && D.some(([y,x]) => slide(pc(n),y,x)!=null)); if(a==null) return 0;
+      const p = pc(a);
+      const b = await ch(m,'Clique na diagonal desejada.', n => dg(a,n) && slide(p,...dirTo(p,n))!=null); if(b==null) return 0;
+      await sc(m,12); 
+      put(p, slide(p,...dirTo(p,b)));
+      if(p.r===(p.s==='w'?0:9)){ burst(p.r,p.c,'big'); kill(p); }
+      return 1;
+    },
+    13: async m => {
+      const o = opp(m); await sc(m,13); const a=S.st[o], au=S.used[o];
+      setSt(m,a,0); setSt(o,rnd(ST.filter(s=>s.id!==a.id&&s.id!==13)), au); return 2; 
+    },
+    14: async m => {
+      const a = await ch(m,'The Hand: escolha sua peça.', n => ownP(m)(n) && P.some(q=>q.alive && q.s!==m && dg(n,q.r*10+q.c) && tgt(n,q.r*10+q.c)!=null)); if(a==null) return 0;
+      const b = await ch(m,'Escolha o inimigo na mesma diagonal.', n => enP(m)(n) && dg(a,n) && tgt(a,n)!=null); if(b==null) return 0;
+      await sc(m,14); put(pc(b), tgt(a,b)); return 1; 
+    },
+    15: async m => {
+      const a = await ch(m,'Super Fly: escolha uma casa vaga para a armadilha.', n => !pc(n) && n!==S.trapSq); if(a==null) return 0;
+      await sc(m,15); S.trapSq=a; return 1; 
+    },
+    16: async m => { await sc(m,16,1500); S.skip[opp(m)]=1; fz(1); return 1; },
+    18: async m => {
+      const a = await ch(m,'November Rain: escolha a peça inimiga.', enP(m)); if(a==null) return 0;
+      await sc(m,18); const p = pc(a);
+      if(p.k) p.k=0; 
+      else {
+        const r = p.r + (p.s==='b'?-1:1);
+        const t = [p.c-1, p.c+1].find(c => ok(r,c) && !G[r][c]);
+        if(t==null){ burst(p.r, p.c, 'big'); kill(p); }
+        else put(p, r*10+t);
+      }
+      return 1;
+    },
+    19: async m => {
+      await sc(m,19,1500);
+      for(const s of ['w','b']){
+        const a = P.filter(p=>p.alive && p.s===s); 
+        a.forEach(p => G[p.r][p.c]=null); 
+        const f=[];
+        for(let r=9; r>5; r--) for(let c=9; c>=0; c--) if((r+c)%2) f.push(s==='w'?[r,c]:[9-r,9-c]);
+        a.forEach((p,i) => { [p.r,p.c]=f[i]; G[p.r][p.c]=p; p.trap=0; land(p); });
+      }
+      return 1;
+    },
+    20: async m => {
+      const h=[];
+      for(let i=0; i<3; i++){
+        const a = await ch(m, `Harvest: escolha uma peça comum (${i+1}/3).`, n => {
+          const p=pc(n); return !!p && p.s===m && !p.k && !h.includes(p) && fw(p).length>0;
+        }, i>0);
+        if(a==null) return 0; if(a<0) break; h.push(pc(a));
+      }
+      if(!h.length) return 0; 
+      await sc(m,20);
+      for(const p of h){ const t=fw(p); if(t.length){ put(p, rnd(t)); crown(p); } }
+      return 1;
+    }
+  };
+
+  async function useStand(me){ 
+    const r = await R[sid(me)](me); 
+    if(r===1) S.used[me]=1; 
+    sync(); return r; 
+  }
+
+  /* ---------- jogada ---------- */
+  function para(p){
+    if(sid('w')!==17 && sid('b')!==17) return;
+    const c = P.find(q=>q.alive && q.para); if(!c || c===p) return;
+    if(p.r === c.r+(c.s==='w'?1:-1) && Math.abs(p.c-c.c)===1){
+      burst(c.r, c.c, 'big'); kill(c); c.para=0; p.para=1;
+    }
+  }
+
+  async function play(m){
+    const p=m.p, tk=[], info={tk, promo:0, expl:0};
+    for(let i=1; i<m.path.length; i++){
+      const [y,x] = m.path[i];
+      const q = m.taken[i-1];
+      const isTrapCapture = q && q.trap;
+      G[p.r][p.c] = null; p.r=y; p.c=x; G[y][x]=p; hop(p);
+      await sleep(isTrapCapture ? 380 : (m.taken.length ? 340 : 260));
+      
+      if(q){
+        tk.push(q); kill(q);
+        if(q.para){ p.para=1; q.para=0; }
+        if(q.bomb){ 
+          burst(p.r, p.c, 'big'); shake(); kill(p); sync(); info.expl=1; 
+          await sc(q.s, 3, 900); return info; 
+        }
+        if(isTrapCapture){
+          burst(q.r, q.c, 'big'); shake(); p.trap=1; para(p); sync();
+          await sleep(200); return info;
+        }
+        burst(q.r, q.c); sync(); await sleep(180);
+      }
+    }
+    if(p.alive){
+      if(!p.k && p.r===(p.s==='w'?0:9)){ p.k=1; info.promo=1; burst(p.r,p.c); burst(p.r,p.c,'big'); }
+      land(p); para(p);
+    }
+    if(tk.length>1){ shake(); combo(tk.length); }
+    sync(); return info;
+  }
+
+  const snap = () => P.map(p => [p.alive, p.r, p.c, p.k, p.bomb, p.para, p.trap]);
+  
+  function restore(a){
+    P.forEach((p,i) => { [p.alive, p.r, p.c, p.k, p.bomb, p.para, p.trap]=a[i]; });
+    G.forEach(r => r.fill(null));
+    P.forEach(p => { if(p.alive) G[p.r][p.c]=p; });
+    sync();
+  }
+
+  async function react(o, m, pre, info){
+    if(S.used[o]) return 0; 
+    const id = sid(o);
+    if(id===11 && info.tk.length){
+      if(!await want(o,'Wonder of U: anular a captura e destruir o atacante?')) return 0;
+      await sc(o,11); S.used[o]=1; restore(pre); burst(m.p.r, m.p.c, 'big'); kill(m.p); sync(); return 1;
+    }
+    if(id===5 && (info.tk.length>1 || info.promo)){
+      if(!await want(o,'Gold Experience Requiem: anular a jogada inteira do oponente?')) return 0;
+      await sc(o,5); S.used[o]=1; restore(pre); return 1;
+    }
+    if(id===2){
+      const q = info.tk.find(x=>x.s===o);
+      if(q && await want(o,'Crazy Diamond: restaurar a peça capturada na sua 1ª fileira?')){
+        const r0 = o==='w'?9:0, r1 = o==='w'?8:1, rows = [0,1,2,3,4,5,6,7,8,9].some(c=>(r0+c)%2 && !G[r0][c]) ? r0 : r1;
+        const n = await ch(o,'Escolha a casa para restaurar a peça.', n=>(n/10|0)===rows && !pc(n));
+        if(n!=null){
+          await sc(o,2); S.used[o]=1; q.alive=1; q.r=n/10|0; q.c=n%10; G[q.r][q.c]=q; q.trap=0; sync(); burst(q.r, q.c);
+        }
+      }
+    }
+    return 0;
+  }
+
+  async function exec(m, myId){
+    busy=1; tg=null; 
+    const hadCap = L.some(x=>x.taken.length); L=[]; sel=null;
+    const s=m.p.s, o=opp(s), pre=snap(); 
+    status();
+    
+    if(sid(s)===4 && !m.taken.length && hadCap) await sc(s, 4, 900);
+    const info = await play(m);
+    
+    if(myId!==undefined && myId!==gameId) return;
+    
+    last = [m.path[0][0]*10+m.path[0][1], m.to[0]*10+m.to[1]];
+    S.forced[s] = null; S.mih[s] = 0; 
+    sync(); paint();
+    turnN++;
+    
+    if(!over && await react(o, m, pre, info)){ S.ex[s]=0; fz(0); return begin(o); }
+    
+    let nx = o;
+    if(S.ex[s]===1){ S.ex[s]=2; nx=s; }
+    else if(S.ex[s]===2){ S.ex[s]=0; fz(0); }
+    else if(S.skip[o]){ S.skip[o]=0; fz(0); nx=s; }
+    begin(nx);
+  }
+
+  function finish(loser){
+    over=1; busy=1; L=[]; 
+    ovEl.style.setProperty('--ac', loser==='b' ? '#ffd54f' : '#ff5252');
+    ovEl.innerHTML = `<b>${loser==='b' ? '🏆 VOCÊ VENCEU!' : '💀 A IA VENCEU'}</b><i>Clique em Novo Jogo</i>`;
+    ovEl.className = 'on'; 
+    sttEl.textContent = 'Fim de jogo.'; 
+    btn();
+  }
+
+  function begin(who){
+    turn=who; busy=0; sel=null; L=legal(who);
+    if(!P.some(p => p.alive && p.s===who) || !L.length) return finish(who);
+    status(); paint(); 
+    if(who==='b') aiTurn();
+  }
+
+  async function aiTurn(){
+    const myId = gameId;
+    busy=1; status(); await sleep(550);
+    if(myId!==gameId) return;
+    const id = sid('b');
+    if(!S.used.b && !PAS.includes(id) && !REA.includes(id) && turnN>1 && Math.random()<.3){
+      await useStand('b');
+      if(myId!==gameId) return;
+      L=legal('b'); 
+      if(!L.length) return begin('b');
+    }
+    exec(aiPick(L), myId);
+  }
+
+  function click(n){
+    if(tg){ if(tg.f(n)){ const t=tg; tg=null; cbEl.hidden=true; paint(); t.res(n); } return; }
+    if(busy || turn!=='w' || over) return;
+    const m = L.find(x => x.p===sel && x.to[0]*10+x.to[1]===n); 
+    if(m) return exec(m);
+    const p = pc(n); 
+    sel = p && p.s==='w' && L.some(x=>x.p===p) ? p : null; 
+    paint();
+  }
+
+  ubEl.onclick = async () => {
+    if(busy || turn!=='w' || over || S.used.w) return;
+    busy=1; L=[]; sel=null; status(); 
+    await useStand('w'); 
+    busy=0; 
+    if(!over) begin('w');
+  };
+
+  /* ---------- setup inicial ---------- */
+  async function chooseInitialPassives(myId){
+    btn();
+    const w = sid('w');
+    if(w===3){
+      P.forEach(p => { if(p.s==='w') p.bomb=0; });
+      sync();
+      const n = await ch('w','💣 Killer Queen: escolha a peça branca que carregará a bomba.', ownP('w'));
+      if(myId!==gameId) return;
+      if(n!=null && n>=0) pc(n).bomb=1;
+      else { const t = P.filter(p=>p.alive && p.s==='w'); if(t.length) rnd(t).bomb=1; }
+      sync();
+    }
+    if(w===17){
+      P.forEach(p => { p.para=0; });
+      sync();
+      const n = await ch('w','🦠 Cheap Trick: escolha a peça que carregará o parasita (sua ou inimiga).', n=>!!pc(n));
+      if(myId!==gameId) return;
+      if(n!=null && n>=0) pc(n).para=1;
+      else { const t = P.filter(p=>p.alive); if(t.length) rnd(t).para=1; }
+      sync();
+    }
+  }
+
+  async function newGame(){
+    gameId++;
+    const myId = gameId;
+    busy=1;
+    P=[]; G=Array.from({length:10}, () => Array(10).fill(null));
+    plEl.innerHTML='';
+    stageEl.className='';
+    ovEl.className='';
+    askEl.hidden=true;
+    cbEl.hidden=true;
+    tg=null; sel=null; L=[]; last=[]; turnN=0; over=0; turn='w';
+
+    const wS = rnd(ST);
+    const bS = rnd(ST.filter(s=>s.id!==wS.id));
+
+    S = {
+      st:{w:wS, b:bS},
+      used:{w:0, b:0},
+      forced:{w:null, b:null},
+      mih:{w:0, b:0},
+      ex:{w:0, b:0},
+      skip:{w:0, b:0},
+      trapSq:-1
+    };
+
+    const addP = (s,r,c) => {
+      const p = {s,r,c,alive:1,k:0,bomb:0,para:0,trap:0,el:mkEl(s)};
+      P.push(p); G[r][c]=p;
+    };
+    for(let r=0; r<4; r++) for(let c=0; c<10; c++) if(dk(r*10+c)) addP('b',r,c);
+    for(let r=6; r<10; r++) for(let c=0; c<10; c++) if(dk(r*10+c)) addP('w',r,c);
+
+    setSt('w', wS, 0);
+    setSt('b', bS, 0);
+
+    sync();
+    btn();
+    await chooseInitialPassives(myId);
+    if(myId!==gameId) return;
+
+    busy=0;
+    begin('w');
+  }
+
+  byId('ng').onclick = newGame;
+  newGame();
+
+})(); // Fim da blindagem do escopo
+</script>
+</body>
+</html>
