@@ -96,7 +96,7 @@ const board=$('board'),pl=$('pl'),ov=$('ov'),stage=$('stage'),stt=$('stt'),ub=$(
 
 const ST=[
 [1,'Star Platinum — Time Stop','2 jogadas seguidas; imune a prisões e à captura obrigatória.','bw','#fff'],
-[2,'Crazy Diamond — Restauração','Ao ter peça capturada, restaura-a na sua 1ª fileira.','pink','#ff80ab'],
+[2,'Crazy Diamond — Restauração','Ao ter peça destruída (recarga 8), restaura-a em qualquer casa atrás da sua peça mais avançada.','pink','#ff80ab'],
 [3,'Killer Queen — Bombas Especiais','Esconde uma bomba (você escolhe peça e tipo): Primeira Bomba ou Sheer Heart Attack (explode as 4 diagonais).','red','#ff5252'],
 [4,'King Crimson — Apagar o Tempo','Passiva: ignora captura obrigatória. Epitaph (recarga 6): peça ameaçada foge 1 casa.','red','#ff1744'],
 [5,'Gold Experience Requiem — Retorno ao Zero','Anula qualquer ação/Stand e te dá o turno livre. Imunidade suprema.','gold','#ffd740'],
@@ -127,9 +127,10 @@ const ST=[
 [30,'Kars — Forma de Vida Definitiva','No início, copie definitivamente qualquer Stand do jogo.','gold','#ffb300']
 ].map(([id,name,desc,fx,col])=>({id,name,desc,fx,col}));
 
-const CDT=[10,6,4,0,12,4,0,6,10,6,12,8,14,4,2,10,0,6,10,6,4,6,6,6,6,6,6,4,6,0];
+const CDT=[10,8,4,0,12,4,0,6,10,6,12,8,14,4,2,10,0,6,10,6,4,6,6,6,6,6,6,4,6,0];
 const PAS=[3,4,17],REA=[2,5,11,8,16,29],PRE=[8,16],SB=id=>ST[id-1],H=s=>s==='w'||M.p2;
 let S,P,G,L=[],sel=null,tg=null,busy=0,turn='w',over=0,last=[],gh=[],turnN=0,ALLY=0,T=1,gid=0,M={p2:0,sw:0,sb:0};
+let AIP=[],AIA=0,CUR=0;
 
 const wrap=x=>S.cyl?((x%10)+10)%10:x;
 const ok=(y,x)=>y>=0&&y<10&&(S.cyl||(x>=0&&x<10));
@@ -151,30 +152,30 @@ function seq(p,r,c,tk,path,out,dd=0){
     if(!ok(y,x))continue;
     const q=G[y][wrap(x)];
     if(!q||q===p||tk.includes(q)||(ALLY?q.s!==p.s:q.s===p.s))continue;
-    if(q.trap&&!imm(p.s)){f=1;out.push({path:[...path,[y,wrap(x)]],tk:[...tk,q]});continue}
+    if(q.trap&&!imm(p.s)){f=1;out.push({path:[...path,[y,wrap(x),dr,dc]],tk:[...tk,q]});continue}
     let ly=y+dr,lx=x+dc;
     if(!ok(ly,lx))continue;
     if(fr(ly,lx,p)){
-      const lnd=(a,b)=>{f=1;if(S.trapSq===a*10+wrap(b)&&!imm(p.s))out.push({path:[...path,[a,wrap(b)]],tk:[...tk,q]});else seq(p,a,wrap(b),[...tk,q],[...path,[a,wrap(b)]],out,dd)};lnd(ly,lx);
+      const lnd=(a,b)=>{f=1;if(S.trapSq===a*10+wrap(b)&&!imm(p.s))out.push({path:[...path,[a,wrap(b),dr,dc]],tk:[...tk,q]});else seq(p,a,wrap(b),[...tk,q],[...path,[a,wrap(b),dr,dc]],out,dd)};lnd(ly,lx);
       if(k)while(ok(ly+dr,lx+dc)&&fr(ly+dr,lx+dc,p)){ly+=dr;lx+=dc;lnd(ly,lx);}
     }else if(has(p.s,22) && !dd && !ALLY){ 
       const q2=G[ly][wrap(lx)];
       if(q2 && q2.s!==p.s && !tk.includes(q2) && !q2.trap){
         let lly=ly+dr,llx=lx+dc;
         if(ok(lly,llx)&&fr(lly,llx,p)){
-          f=1;seq(p,lly,wrap(llx),[...tk,q,q2],[...path,[lly,wrap(llx)]],out,1);
+          f=1;seq(p,lly,wrap(llx),[...tk,q,q2],[...path,[lly,wrap(llx),dr,dc]],out,1);
         }
       }
     }
   }
   if(tk.length&&(!f||has(p.s,4)))out.push({path,tk});
 }
-function capsOf(p){const o=[];seq(p,p.r,p.c,[],[[p.r,p.c]],o);return o.map(x=>({p,path:x.path,to:x.path[x.path.length-1],taken:x.tk}))}
+function capsOf(p){const o=[];seq(p,p.r,p.c,[],[[p.r,p.c]],o);return o.map(x=>({p,path:x.path,to:x.path[x.path.length-1].slice(0,2),taken:x.tk}))}
 function harv(p){
   const mp=new Map(),add=m=>{const k=m.to+'|'+m.taken.length,o=mp.get(k);if(!o||o.path.length>m.path.length)mp.set(k,m)};
   (function go(r,c,dp,path){
     if(dp>0)add({p,path,to:[r,c],taken:[]});
-    if(dp>0&&dp<3){const o=[];seq(p,r,c,[],[...path],o);o.forEach(x=>{if(x.tk.length)add({p,path:x.path,to:x.path[x.path.length-1],taken:x.tk})})}
+    if(dp>0&&dp<3){const o=[];seq(p,r,c,[],[...path],o);o.forEach(x=>{if(x.tk.length)add({p,path:x.path,to:x.path[x.path.length-1].slice(0,2),taken:x.tk})})}
     if(dp===3)return;
     for(const[dr,dc]of D){const y=r+dr,x=wrap(c+dc);if(ok(y,x)&&fr(y,x,p))go(y,x,dp+1,[...path,[y,x]])}
   })(p.r,p.c,0,[[p.r,p.c]]);
@@ -214,14 +215,90 @@ function sim(m,f){
   [p.r,p.c]=m.to;G[p.r][p.c]=p;if(p.r===(p.s==='w'?0:9))p.k=1;
   const v=f();G[p.r][p.c]=null;[p.r,p.c,p.k]=o;G[p.r][p.c]=p;m.taken.forEach(q=>{q.alive=1;G[q.r][q.c]=q});return v;
 }
+const VAL=q=>q.k?2.2:1,idx=p=>p.r*10+p.c,own=c=>P.filter(p=>p.alive&&!p.hide&&p.s===c),foes=c=>P.filter(p=>p.alive&&!p.hide&&p.s!==c),shuf=a=>a.sort(()=>Math.random()-.5);
+const cval=x=>3*x.taken.reduce((a,q)=>a+(q.s===x.p.s?-1:1)*VAL(q),0);
+const lg=c=>{const f={...S.forced},m=legal(c);S.forced=f;return m};
+const matv=c=>3*P.reduce((a,q)=>a+(q.alive?(q.s===c?1:-1)*VAL(q):0),0);
+const capv=c=>{const ms=lg(c);return ms.length?Math.max(0,...ms.map(cval)):-9};
+const tscore=c=>matv(c)+capv(c)-capv(opp(c));
+const bombFx=x=>x.taken.reduce((a,q)=>{if(!q.bomb)return a;let v=-3*VAL(x.p);if(q.bomb===2)for(const[da,db]of D){const z=ok(q.r+da,wrap(q.c+db))&&G[q.r+da][wrap(q.c+db)];if(z&&z!==x.p)v-=(z.s===x.p.s?3:-3)*VAL(z)}return a+v},0);
+function replyVal(en){
+  const ms=lg(en);if(!ms.length)return -6;
+  const cs=ms.filter(x=>x.taken.length);if(!cs.length)return 0;
+  const ex=exempt(en),vs=cs.map(x=>({n:x.taken.length,v:cval(x)+bombFx(x)})),k=y=>ex?y.v:y.n,mx=Math.max(...vs.map(k)),c=vs.filter(y=>k(y)===mx);
+  return c.reduce((a,y)=>a+y.v,0)/c.length;
+}
 function aiPick(ms){
   const me=ms[0].p.s,en=opp(me);let b=-1e9,bm=ms[0];
   for(const m of ms){
-    const foe=m.taken.every(q=>q.s!==m.p.s)?1:-1,adv=me==='b'?m.to[0]:9-m.to[0];
-    const s=sim(m,()=>-3*Math.max(0,...legal(en).map(x=>x.taken.length)))+3*m.taken.length*foe+(m.p.k?0:adv*.2)+(!m.p.k&&adv===9?2:0)+Math.random()*.7;
+    const adv=me==='b'?m.to[0]:9-m.to[0];
+    const s=sim(m,()=>-replyVal(en))+cval(m)+(m.p.k?0:adv*.2)+(!m.p.k&&adv===9?2:0)+Math.random()*.7;
     if(s>b){b=s;bm=m}
   }
   return bm;
+}
+function behindCells(c,ex){
+  const mine=P.filter(p=>p.alive&&!p.hide&&p.s===c&&!p.clone&&p!==ex);if(!mine.length)return[];
+  const adv=mine.reduce((x,y)=>(c==='w'?y.r<x.r:y.r>x.r)?y:x),all=[...Array(100).keys()].filter(dk);
+  const a=all.filter(n=>!pc(n)&&(c==='w'?(n/10|0)>adv.r:(n/10|0)<adv.r));
+  return a.length?a:all.filter(n=>!pc(n)&&mine.some(p=>Math.abs(p.r-(n/10|0))===1&&Math.abs(p.c-n%10)===1));
+}
+const dvDst=p=>{const o=[];if(stuck(p)||p.hide)return o;for(const[dr,dc]of(p.k?D:D.filter(d=>d[0]===(p.s==='w'?-1:1)))){const y=p.r+2*dr,x=p.c+2*dc;if(ok(y,x)&&!G[y][wrap(x)])o.push(y*10+wrap(x))}return o};
+const rebuild=()=>{G.forEach(r=>r.fill(null));P.forEach(q=>{if(q.alive&&!q.hide)G[q.r][q.c]=q})};
+const FLD=q=>[q.alive,q.r,q.c,q.k,q.trap,q.tng,q.hide,q.para,q.bomb];
+function vtry(fx,c){
+  const n=P.length,sv=P.map(FLD),ss=[S.trapSq,S.trapOwner,S.cyl,S.ex[c],S.mih[c],S.fric[opp(c)]];let v;
+  try{fx();rebuild();v=tscore(c)}finally{P.length=n;P.forEach((q,i)=>{[q.alive,q.r,q.c,q.k,q.trap,q.tng,q.hide,q.para,q.bomb]=sv[i]});[S.trapSq,S.trapOwner,S.cyl,S.ex[c],S.mih[c],S.fric[opp(c)]]=ss;rebuild()}
+  return v;
+}
+function aiCell(c,cs,q){let b=null;for(const n of cs){const v=vtry(()=>{q.alive=1;q.r=n/10|0;q.c=n%10},c);if(!b||v>b.v)b={v,n}}return b.n}
+const mvG=(q,n)=>{G[q.r][q.c]=null;q.r=n/10|0;q.c=n%10;G[q.r][q.c]=q},kg=q=>{q.alive=0;if(G[q.r][q.c]===q)G[q.r][q.c]=null};
+const GERP={7:1,13:.9,10:1,18:1,25:1,19:.7,1:.6,16:.6,24:.7,14:.7,12:.8,9:.7,15:.6,23:.5,26:.4,28:.4,22:.3,20:.3,27:.3,6:.3,21:0,8:.6},STRONG=[1,3,5,7,10,11,16,18,19,24,25];
+const GEN={
+6:c=>own(c).filter(a=>!stuck(a)).flatMap(a=>zip(idx(a)).map(b=>({plan:[idx(a),b],fx:()=>mvG(a,b)}))),
+9:c=>shuf(own(c).flatMap(a=>P.filter(b=>b.alive&&!b.hide&&b!==a).map(b=>({plan:[idx(a),idx(b)],fx:()=>{const i=idx(a),j=idx(b);G[a.r][a.c]=null;G[b.r][b.c]=null;a.r=j/10|0;a.c=j%10;b.r=i/10|0;b.c=i%10;G[a.r][a.c]=a;G[b.r][b.c]=b;[a,b].forEach(z=>{if(!z.k&&z.r===(z.s==='w'?0:9))z.k=1})}})))).slice(0,50),
+10:c=>own(c).filter(a=>!stuck(a)).flatMap(a=>foes(c).filter(b=>dg(idx(a),idx(b))).map(b=>({plan:[idx(a),idx(b)],fx:()=>kg(b)}))),
+14:c=>own(c).filter(a=>!stuck(a)).flatMap(a=>foes(c).filter(b=>{const i=idx(b),j=idx(a);return !b.tng&&dg(j,i)&&los(j,i)&&tgt(j,i)!=null}).map(b=>({plan:[idx(a),idx(b)],fx:()=>mvG(b,tgt(idx(a),idx(b)))}))),
+18:c=>foes(c).filter(p=>!p.tng).map(p=>{const r=p.r+(p.s==='b'?-1:1),t=[p.c-1,p.c+1].find(x=>ok(r,x)&&!G[r][x]);return{plan:[idx(p)],fx:()=>t==null?kg(p):mvG(p,r*10+t)}}),
+20:c=>{const o=[];for(let k=0;k<15;k++){const a=[],m=[],u=new Set();for(const q of shuf(own(c).filter(x=>!x.k&&!stuck(x)))){if(a.length>=6)break;const d=fw(q).filter(x=>!u.has(x));if(d.length){const t=rnd(d);u.add(t);a.push(idx(q),t);m.push({q,t})}}if(a.length){a.push(-1);o.push({plan:a,fx:()=>m.forEach(x=>mvG(x.q,x.t))})}}return o},
+22:c=>own(c).flatMap(a=>dvDst(a).map(b=>({plan:[idx(a),b],fx:()=>mvG(a,b)}))),
+23:c=>{const o=[],seen=new Set();for(const e of foes(c)){if(e.tng)continue;for(const dc of[-1,1]){const cl=dCells(e.r,e.c,1,dc),k=cl.slice().sort((x,y)=>x-y).join(),b=cl.find(n=>n!==idx(e));if(seen.has(k)||b==null)continue;seen.add(k);o.push({plan:[idx(e),b],fx:()=>{const es=cl.map(pc).filter(q=>q&&q.s!==c&&!q.tng);es.sort((x,y)=>(x.s==='w'?9-x.r:x.r)-(y.s==='w'?9-y.r:y.r));for(const q of es){const pd=q.s==='w'?1:-1,h=dc*pd;let y=q.r,x=q.c;while(ok(y+pd,x+h)&&!G[y+pd][x+h]){y+=pd;x+=h}if(y!==q.r||x!==q.c)mvG(q,y*10+x)}}})}}return o},
+24:c=>{const o=[],seen=new Set();for(const a of own(c)){if(stuck(a))continue;for(const dc of[-1,1]){const cl=dCells(a.r,a.c,1,dc),k=cl.slice().sort((x,y)=>x-y).join(),b=cl.find(n=>n!==idx(a)),es=cl.map(pc).filter(q=>q&&q.s!==c);if(seen.has(k)||b==null||!es.length)continue;seen.add(k);o.push({plan:[idx(a),b],fx:()=>es.forEach(q=>q.tng=1)})}}return o},
+25:c=>P.filter(p=>p.alive&&!p.hide).map(p=>({plan:[idx(p)],fx:()=>{for(const[a,b]of D){const q=ok(p.r+a,p.c+b)&&G[p.r+a][p.c+b];if(!q||q.tng)continue;const y=q.r+sg(q.r-p.r),x=q.c+sg(q.c-p.c);ok(y,x)&&!G[y][x]?mvG(q,y*10+x):kg(q)}}})),
+26:c=>P.filter(p=>p.alive&&!p.hide&&!p.tng).map(p=>({plan:[idx(p)],fx:()=>{p.hide=3;G[p.r][p.c]=null}})),
+27:c=>{const m=own(c).filter(p=>!p.clone);if(!m.length)return[];const s=m.find(p=>p.k)||m.reduce((x,y)=>(c==='w'?y.r<x.r:y.r>x.r)?y:x);return shuf(behindCells(c,null)).slice(0,10).map(n=>({plan:[idx(s),n],fx:()=>{P.push({s:c,k:s.k,r:n/10|0,c:n%10,alive:1,bomb:0,para:0,trap:0,hide:0,tng:0,clone:3,el:null})}}))},
+28:c=>[{plan:[],fx:()=>{S.cyl=1}}]
+};
+function aiOpt(id,c,base){
+  if(id===7)return{g:9,plan:[]};
+  if(id===13)return STRONG.includes(S.st[opp(c)].id)?{g:9,plan:[]}:null;
+  if(id===19)return matv(c)<=-6?{g:9,plan:[]}:null;
+  if(id===1){let b=0;for(const m of lg(c).slice(0,12))b=Math.max(b,cval(m)+Math.max(0,sim(m,()=>capv(c))));return b>=6?{g:9,plan:[]}:null}
+  if(id===12){const ms=lg(opp(c));if(!ms.length)return null;let d=0;for(const x of ms){const lp=x.path[x.path.length-1];let[dr,dc]=lp.length>2?[lp[2],lp[3]]:dirh(x.path[x.path.length-2]||x.path[0],lp),y=x.to[0],z=x.to[1];while(ok(y+dr,z+dc)&&!G[y+dr][wrap(z+dc)]){y+=dr;z+=dc}if(!ok(y+dr,z+dc))d++}return d/ms.length>=.6?{g:9,plan:[]}:null}
+  if(id===15){if(P.some(p=>p.alive&&p.trap&&p.s!==c))return null;let b=null;for(const n of[...Array(100).keys()].filter(dk))if(!pc(n)&&n!==S.trapSq){let v=0;for(const e of[opp(c),c])for(const x of lg(e))if(x.to[0]*10+x.to[1]===n)v+=(e===c?-1:1)*(x.taken.length?2:.5);if(!b||v>b.v)b={v,n}}return b&&b.v>=2?{g:b.v+1,plan:[b.n]}:null}
+  const gen=GEN[id];if(!gen)return null;
+  let b=null;for(const x of gen(c)){const v=vtry(x.fx,c)-base;if(!b||v>b.g)b={g:v,plan:x.plan}}
+  return b&&b.g>=((id===26||id===27)?4.2:1.5+.05*CDT[id-1])?b:null;
+}
+function aiStandPick(c){
+  const us=[[S.used[c]?0:S.st[c].id,0],[S.ws_st[c]&&!S.ws_used[c]?S.ws_st[c].id:0,1]].filter(([i])=>i&&R[i]&&!PAS.includes(i)&&!REA.includes(i)&&i!==21);
+  if(!us.length)return null;
+  const base=tscore(c);let best=null;
+  for(const[id,w]of us){const o=aiOpt(id,c,base);if(o&&(!best||o.g>best.g))best={...o,id,w}}
+  return best;
+}
+function aiMandom(o,who){
+  const sn=S['md_'+o];if(!sn)return false;
+  const now=matv(o)-capv(who),then=vtry(()=>{sn.p.forEach((d,i)=>{const q=P[i];if(q)Object.assign(q,{r:d.r,c:d.c,k:d.k,alive:d.alive,bomb:d.bomb,para:d.para,trap:d.trap,tng:d.tng,hide:d.hide})});P.forEach((q,i)=>{if(i>=sn.p.length)q.alive=0})},o)-capv(o);
+  return then-now>=4;
+}
+function aiPre(o,who,id){
+  if(id===16)return capv(who)>=3||capv(o)>=3;
+  const hv=x=>sim(x,()=>Math.max(0,capv(o)))-cval(x);
+  let fr=1e9;for(const x of lg(who))fr=Math.min(fr,hv(x));
+  let b=null;for(const t of own(who)){const ms=fmoves(t);if(!ms.length)continue;const v=Math.min(...ms.map(hv));if(!b||v>b.v)b={v,t}}
+  if(b&&b.v-fr>=2){AIP.length=0;AIP.push(idx(b.t));AIA=1;return true}
+  return false;
 }
 
 function mkEl(s){const e=document.createElement('div');e.className='pc '+s;e.innerHTML='<div class="in"><b></b><u></u></div>';return e}
@@ -249,7 +326,7 @@ function paint(){
 function burst(r,c,cls=''){const e=document.createElement('div');e.className='bu '+cls;e.style.cssText=`left:calc(${c}*var(--s));top:calc(${r}*var(--s))`;pl.appendChild(e);setTimeout(()=>e.remove(),700)}
 function shake(){const b=$('bw');b.classList.add('shake');setTimeout(()=>b.classList.remove('shake'),500)}
 function combo(n){const e=document.createElement('div');e.className='cmb';e.textContent=`×${n} COMBO!`;$('bw').appendChild(e);setTimeout(()=>e.remove(),1250)}
-function hop(p){sync();p.el.classList.add('hop');setTimeout(()=>p.el.classList.remove('hop'),320)}
+function hop(p,t){if(t)p.el.style.transition='none';sync();if(t){void p.el.offsetWidth;p.el.style.transition=''}p.el.classList.add('hop');setTimeout(()=>p.el.classList.remove('hop'),320)}
 async function sc(me,id,ms=1300){
   const s=SB(id),[a,b]=s.name.split(' — ');
   ov.style.setProperty('--ac',s.col);ov.innerHTML=`<b>${a.toUpperCase()}</b><i>${me==='b'&&!M.p2?'🤖 IA — ':''}${b||''}</i>`;
@@ -286,12 +363,12 @@ function status(){
 function ch(me,msg,f,opt){
   const c=[];for(let n=0;n<100;n++)if(dk(n)&&f(n))c.push(n);
   if(!c.length){if(H(me)&&!opt){stt.textContent='Sem alvos válidos.';setTimeout(status,1800)}return Promise.resolve(opt?-1:null)}
-  if(!H(me))return Promise.resolve(opt&&Math.random()<.35?-1:rnd(c));
+  if(!H(me)){if(AIA){const v=AIP.shift();if(v===-1&&opt)return Promise.resolve(-1);if(v!==undefined&&f(v))return Promise.resolve(v);return Promise.resolve(opt?-1:null)}return Promise.resolve(opt&&Math.random()<.35?-1:rnd(c))}
   return new Promise(res=>{tg={f,res,opt};stt.textContent=msg;cb.hidden=false;cb.textContent=opt?'Concluir':'Cancelar';paint()});
 }
 cb.onclick=()=>{if(tg){const t=tg;tg=null;cb.hidden=true;paint();t.res(t.opt?-1:null)}};
-function want(me,q){
-  if(!H(me))return Promise.resolve(Math.random()<.85);
+function want(me,q,pr=.85){
+  if(!H(me))return Promise.resolve(Math.random()<pr);
   return new Promise(r=>{
     $('aq').textContent=q;
     $('selk').hidden=true;
@@ -331,19 +408,14 @@ function crown(p){if(p.alive&&!p.k&&p.r===(p.s==='w'?0:9))p.k=1}
 function kill(q,cap=false){
   if(G[q.r][q.c]===q)G[q.r][q.c]=null;
   q.alive=0;
-  if(cap){
-    if(q.para)S.ct_dead=q.s;
-    if(q.bomb&&!q.bx){ q.bx=1; if(has(q.s,3)) cd(q.s,3,q.bomb===2?6:4); }
-  } else {
-    // Ranged / Push elimination bypasses curses.
-    if(q.bomb&&!q.bx){ q.bx=1; if(has(q.s,3)) cd(q.s,3,q.bomb===2?6:4); } // disarms bomb without explosion
-  }
+  if(q.bomb&&!q.bx){q.bx=1;if(has(q.s,3))cd(q.s,3,q.bomb===2?6:4)}
+  if(q.para){q.para=0;S.ct_dead=ctSide()}
 }
 
 async function chkImmunity(m,q,base){
   if(!q)return false;
   const o=q.s;
-  if(rdy(o,5)&&await want(o,'Gold Experience Requiem: anular esta habilidade inimiga?')){await sc(o,5);cd(o,5);return true;}
+  if(rdy(o,5)&&await want(o,'Gold Experience Requiem: anular esta habilidade inimiga?',GERP[CUR]??.7)){await sc(o,5);cd(o,5);return true;}
   if(rdy(o,11)){
     if(!await want(o, 'Wonder of U: Você está sendo perseguido, seguir o fluxo da calamidade?')) return false;
     if(await gerCtr(m,'a Calamidade do Wonder of U')){cd(o,11);return false}
@@ -427,9 +499,9 @@ async function retPres(p){
 const R={
 1:async m=>{await sc(m,1);S.ex[m]=1;fz(1);return 1},
 6:async m=>{
-  const a=await ch(m,'Sticky Fingers: escolha uma peça.',n=>ownP(m)(n)&&zip(n).length>0);if(a==null)return 0;
+  const a=await ch(m,'Sticky Fingers: escolha uma peça.',n=>ownP(m)(n)&&!stuck(pc(n))&&zip(n).length>0);if(a==null)return 0;
   const b=await ch(m,'Escolha a casa de pouso.',n=>zip(a).includes(n));if(b==null)return 0;
-  await sc(m,6);const p=pc(a);await put(p,b);crown(p);return 1},
+  await sc(m,6);const p=pc(a);await put(p,b);crown(p);await ctMove(p);return 1},
 7:async m=>{
   const cds = [0,10,8,6,4,2,0];
   const idx = S.mn[m];
@@ -442,33 +514,33 @@ const R={
     return 2;
   }
   S.mih[m]=1;
-  S.used[m]=c;
+  cd(m,7,cds[idx+1]||0);
   return 1;
 },
 8:async m=>{
   const a=await ch(m,'Heaven’s Door: alvo inimigo.',n=>enP(m)(n)&&fmoves(pc(n)).length>0);if(a==null)return 0;
   await sc(m,8);S.forced[opp(m)]=pc(a);return 1},
 9:async m=>{
-  const a=await ch(m,'D4C: escolha a 1ª peça.',n=>!!pc(n)&&pc(n).tng!==2);if(a==null)return 0;
-  const b=await ch(m,'Escolha a 2ª peça.',n=>!!pc(n)&&n!==a&&pc(n).tng!==2);if(b==null)return 0;
-  await sc(m,9);const x=pc(a),y=pc(b);G[x.r][x.c]=y;G[y.r][y.c]=x;[x.r,x.c,y.r,y.c]=[y.r,y.c,x.r,x.c];crown(x);crown(y);await land(x);await land(y);return 1},
+  const a=await ch(m,'D4C: escolha a 1ª peça.',n=>!!pc(n));if(a==null)return 0;
+  const b=await ch(m,'Escolha a 2ª peça.',n=>!!pc(n)&&n!==a);if(b==null)return 0;
+  await sc(m,9);const x=pc(a),y=pc(b);G[x.r][x.c]=y;G[y.r][y.c]=x;[x.r,x.c,y.r,y.c]=[y.r,y.c,x.r,x.c];[x.tng,y.tng]=[y.tng,x.tng];crown(x);crown(y);await land(x);await land(y);return 1},
 10:async m=>{
-  const a=await ch(m,'Tusk: atirador.',n=>ownP(m)(n)&&P.some(q=>q.alive&&!q.hide&&q.s!==m&&dg(n,q.r*10+q.c)));if(a==null)return 0;
+  const a=await ch(m,'Tusk: atirador.',n=>ownP(m)(n)&&!stuck(pc(n))&&P.some(q=>q.alive&&!q.hide&&q.s!==m&&dg(n,q.r*10+q.c)));if(a==null)return 0;
   const b=await ch(m,'Tusk: alvo inimigo na diagonal.',n=>enP(m)(n)&&dg(a,n));if(b==null)return 0;
   if(await chkImmunity(m,pc(b),pc(a)))return 1;
   await sc(m,10);const q=pc(b);burst(q.r,q.c,'big');kill(q,false);return 1},
 12:async m=>{await sc(m,12);S.fric[opp(m)]=1;return 1},
 13:async m=>{
   const o=opp(m);await sc(m,13);
-  S.ws_st[m]=S.st[o];S.ws_used[m]=S.used[o];
-  const ns=rnd(ST.filter(s=>s.id!==S.st[o].id&&s.id!==13));
-  S.st[o]=ns;S.used[o]=0;
+  S.ws_st[m]=S.st[o];S.ws_used[m]=0;
+  const bad=[S.st[m].id,S.st[o].id,13,30],ns=rnd(ST.filter(s=>!bad.includes(s.id))),was=S.used[o];
+  S.st[o]=ns;S.used[o]=was&&!PAS.includes(ns.id)?(CDT[ns.id-1]||1):0;
   await initStandsDynamically(m, true);
   await initStandsDynamically(o, false);
   return 1},
 14:async m=>{
-  const a=await ch(m,'The Hand: atirador.',n=>ownP(m)(n)&&P.some(q=>q.alive&&!q.hide&&q.s!==m&&dg(n,q.r*10+q.c)&&los(n,q.r*10+q.c)&&tgt(n,q.r*10+q.c)!=null&&q.tng!==2));if(a==null)return 0;
-  const b=await ch(m,'Alvo inimigo limpo.',n=>enP(m)(n)&&dg(a,n)&&los(a,n)&&tgt(a,n)!=null&&pc(n).tng!==2);if(b==null)return 0;
+  const a=await ch(m,'The Hand: atirador.',n=>ownP(m)(n)&&!stuck(pc(n))&&P.some(q=>q.alive&&!q.hide&&q.s!==m&&dg(n,q.r*10+q.c)&&los(n,q.r*10+q.c)&&tgt(n,q.r*10+q.c)!=null&&!q.tng));if(a==null)return 0;
+  const b=await ch(m,'Alvo inimigo limpo.',n=>enP(m)(n)&&dg(a,n)&&los(a,n)&&tgt(a,n)!=null&&!pc(n).tng);if(b==null)return 0;
   if(await chkImmunity(m,pc(b),pc(a)))return 1;
   await sc(m,14);await put(pc(b),tgt(a,b));return 1},
 15:async m=>{
@@ -477,14 +549,14 @@ const R={
   S.sf[m]++;S.used[m]=Math.min(8,2*S.sf[m]);sync();return 1},
 16:async m=>{await sc(m,16,1500);S.skip[opp(m)]=1;fz(1);S.tw[m]=1;S.free[m]=1;return 1},
 18:async m=>{
-  const a=await ch(m,'November Rain: peça inimiga.',n=>enP(m)(n)&&pc(n).tng!==2);if(a==null)return 0;
+  const a=await ch(m,'November Rain: peça inimiga.',n=>enP(m)(n)&&!pc(n).tng);if(a==null)return 0;
   const p=pc(a);if(await chkImmunity(m,p))return 1;
   await sc(m,18);
   const r=p.r+(p.s==='b'?-1:1),t=[p.c-1,p.c+1].find(c=>ok(r,c)&&!G[r][wrap(c)]);
   if(t==null){burst(p.r,p.c,'big');kill(p,false)}else await put(p,r*10+wrap(t));
   return 1},
 19:async m=>{
-  await sc(m,19,1500);P.forEach(p=>{if(p.alive&&p.hide){p.hide=0;p.hide_by=null;p.orig=null}});S.trapSq=null;S.trapOwner=null;P.forEach(p=>{p.trap=0;p.tng=p.tng});P.filter(p=>p.alive).forEach(p=>{if(G[p.r][p.c]===p)G[p.r][p.c]=null});
+  await sc(m,19,1500);P.forEach(p=>{if(p.alive&&p.hide){p.hide=0;p.hide_by=null;p.orig=null}});S.trapSq=null;S.trapOwner=null;P.forEach(p=>{p.trap=0;p.tng=0});P.filter(p=>p.alive).forEach(p=>{if(G[p.r][p.c]===p)G[p.r][p.c]=null});
   for(const s of['w','b']){
     const a=P.filter(p=>p.alive&&!p.hide&&p.s===s);const f=[];
     for(let r=9;r>5;r--)for(let c=9;c>=0;c--)if((r+c)%2)f.push(s==='w'?[r,c]:[9-r,9-c]);
@@ -507,11 +579,11 @@ const R={
 20:async m=>{
   const dn=[];let n=0;await sc(m,20);
   for(let i=0;i<3;i++){
-    const a=await ch(m,`Harvest: peça comum (${i+1}/3) que avança 1 casa.`,x=>{const p=pc(x);return !!p&&p.s===m&&!p.k&&!dn.includes(p)&&fw(p).length>0},i>0);
+    const a=await ch(m,`Harvest: peça comum (${i+1}/3) que avança 1 casa.`,x=>{const p=pc(x);return !!p&&p.s===m&&!p.k&&!stuck(p)&&!dn.includes(p)&&fw(p).length>0},i>0);
     if(a==null)return n?1:0;if(a<0)break;
     const p=pc(a),d=await ch(m,'Harvest: escolha a casa de destino (sem capturar).',x=>fw(p).includes(x));
     if(d==null)break;
-    await put(p,d);crown(p);dn.push(p);n++;
+    await put(p,d);crown(p);await ctMove(p);dn.push(p);n++;
   }
   return n?1:0},
 21:async m=>{
@@ -519,25 +591,14 @@ const R={
   if(best){gh=best.path.map(x=>x[0]*10+wrap(x[1]));paint();setTimeout(()=>{gh=[];paint()},4000);}
   return 1},
 22:async m=>{
-  const a = await ch(m, 'Diver Down (Infiltração): escolha sua peça.', n=>{const p = pc(n); return p && p.s === m && !p.hide;});
-  if(a==null) return 0;
-  const p = pc(a);
-  const fw2 = [ [p.r+(p.s==='w'?-2:2), p.c-2], [p.r+(p.s==='w'?-2:2), p.c+2] ].filter(([y,x]) => {
-     if(!ok(y,wrap(x)) || G[y][wrap(x)]) return false;
-     const my = (p.r + y)/2, mx = (p.c + x)/2;
-     const mp = G[my][wrap(mx)];
-     return mp && mp.s !== m;
-  }).map(([y,x]) => y*10+wrap(x));
-  if (!fw2.length) { stt.textContent='Sem alvos válidos para infiltração.'; setTimeout(status, 1800); return 0; }
-  const b = await ch(m, 'Diver Down: escolha o destino (2 casas à frente, sem destruir).', n => fw2.includes(n));
-  if (b == null) return 0;
-  await sc(m, 22);
-  await put(p, b);
-  crown(p);
-  return 1;
-},
+  const a=await ch(m,'Diver Down (Infiltração): escolha sua peça.',n=>{const p=pc(n);return !!p&&p.s===m&&dvDst(p).length>0});
+  if(a==null)return 0;
+  const p=pc(a),ds=dvDst(p);
+  const b=await ch(m,'Diver Down: escolha o destino (2 casas à frente; pode passar sob qualquer peça).',n=>ds.includes(n));
+  if(b==null)return 0;
+  await sc(m,22);await put(p,b);crown(p);await ctMove(p);return 1},
 23:async m=>{
-  const dE=(n,k)=>dCells(n/10|0,n%10,1,k).some(x=>{const q=pc(x);return q&&q.s!==m&&q.tng!==2});
+  const dE=(n,k)=>dCells(n/10|0,n%10,1,k).some(x=>{const q=pc(x);return q&&q.s!==m&&!q.tng});
   const kk=(a,b)=>((b%10-a%10)*((b/10|0)-(a/10|0))>0)?1:-1;
   const a = await ch(m,'C-Moon: clique numa casa; depois escolha uma das 2 diagonais que passam por ela.',n=>dE(n,1)||dE(n,-1));
   if(a==null) return 0;
@@ -546,7 +607,7 @@ const R={
   await sc(m,23);
   const ar = a/10|0, ac = a%10, dr = 1, dc = kk(a,b);
   const cells = dCells(ar, ac, dr, dc);
-  let es = cells.map(n=>pc(n)).filter(q=>q && q.s!==m && q.tng!==2);
+  let es = cells.map(n=>pc(n)).filter(q=>q && q.s!==m && !q.tng);
   if(await immuneAny(m,es)) return 1;
   es.sort((e1,e2)=>(e1.s==='w'?9-e1.r:e1.r)-(e2.s==='w'?9-e2.r:e2.r));
   for(let q of es){
@@ -559,7 +620,7 @@ const R={
   return 1;
 },
 24:async m=>{
-  const a = await ch(m, 'Stone Free: sua peça origem.', ownP(m));
+  const a = await ch(m, 'Stone Free: sua peça origem.', n=>ownP(m)(n)&&!stuck(pc(n)));
   if(a==null) return 0;
   const b = await ch(m, 'Clique na direção da teia.', n=>dg(a,n));
   if(b==null) return 0;
@@ -574,13 +635,13 @@ const R={
   return 1;
 },
 25:async m=>{
-  const a = await ch(m, 'Purple Haze: epicentro (peça aliada).', n=>{const p=pc(n);return !!p&&p.s===m&&!p.hide});
+  const a = await ch(m, 'Purple Haze: epicentro (qualquer peça).', n=>{const p=pc(n);return !!p&&!p.hide});
   if(a==null) return 0;
   await sc(m,25);
   const p = pc(a);
-  const nb = D.map(([dr,dc])=> ok(p.r+dr, p.c+dc) ? G[p.r+dr][wrap(p.c+dc)] : null).filter(q=>q);
+  const nb = D.map(([dr,dc])=> ok(p.r+dr, p.c+dc) ? G[p.r+dr][wrap(p.c+dc)] : null).filter(q=>q&&!q.tng);
   for(let q of nb){
-    if(await chkImmunity(m, q, p)) continue;
+    if(q.s!==m&&await chkImmunity(m, q, p)) continue;
     let ny = q.r + sg(q.r-p.r), nx = q.c + sg(q.c-p.c);
     if(ok(ny, nx) && !G[ny][wrap(nx)]) await put(q, ny*10+wrap(nx));
     else { burst(q.r,q.c,'big'); kill(q,false); }
@@ -592,42 +653,44 @@ const R={
   if(h){
     await sc(m,26);await retPres(h);h.hide_by=null;return 1;
   }
-  const a=await ch(m,'Mr President: esconda 1 peça.',n=>!!pc(n)&&pc(n).tng!==2);if(a==null)return 0;
+  const a=await ch(m,'Mr President: esconda 1 peça.',n=>!!pc(n)&&!pc(n).tng);if(a==null)return 0;
   const p=pc(a);if(p.s!==m&&await chkImmunity(m,p))return 1;await sc(m,26);
   p.hide=3;p.hide_by=m;p.orig=[p.r,p.c];G[p.r][p.c]=null;sync();return 1},
 27:async m=>{
   const a=await ch(m,'Matte Kudasai: escolha uma peça SUA para copiar.',n=>{const p=pc(n);return !!p&&p.s===m&&!p.clone});if(a==null)return 0;
-  const mine=P.filter(p=>p.alive&&!p.hide&&p.s===m&&!p.clone),adv=mine.reduce((x,y)=>(m==='w'?y.r<x.r:y.r>x.r)?y:x);
-  const bh=n=>dk(n)&&!pc(n)&&(m==='w'?(n/10|0)>adv.r:(n/10|0)<adv.r),nb=n=>dk(n)&&!pc(n)&&mine.some(p=>Math.abs(p.r-(n/10|0))===1&&Math.abs(p.c-n%10)===1);
-  const f=[...Array(100).keys()].some(bh)?bh:nb;
-  const d=await ch(m,'Matte Kudasai: escolha onde posicionar a cópia (atrás da sua peça mais avançada).',f);if(d==null)return 0;
+  const cs=behindCells(m,null);
+  const d=await ch(m,'Matte Kudasai: escolha onde posicionar a cópia (atrás da sua peça mais avançada).',n=>cs.includes(n));if(d==null)return 0;
   await sc(m,27);const src=pc(a);
   const cl={s:m,k:src.k,r:d/10|0,c:d%10,alive:1,bomb:0,para:0,trap:0,hide:0,tng:0,el:mkEl(m),clone:3,orig:null};
   P.push(cl);G[cl.r][cl.c]=cl;await land(cl);sync();burst(cl.r,cl.c);return 1},
 28:async m=>{await sc(m,28);S.cyl=1;return 1}
 };
-async function useStand(me){const uS=(S.ws_st[me]&&S.ws_act===me)?S.ws_st[me].id:S.st[me].id;if(!R[uS])return 0;const r=await R[uS](me);if(r===1||r===3){if(S.ws_act===me){S.ws_used[me]=CDT[uS-1];S.ws_act=0;}else S.used[me]=CDT[uS-1];}sync();return r}
+async function useStand(me){const uS=(S.ws_st[me]&&S.ws_act===me)?S.ws_st[me].id:S.st[me].id;if(!R[uS])return 0;const r=await R[uS](me);if(r===1||r===3){if(uS===7)S.ws_act=0;else if(S.ws_act===me){S.ws_used[me]=CDT[uS-1];S.ws_act=0;}else S.used[me]=CDT[uS-1];}sync();return r}
 
-function checkPara(p){
-  const c=P.find(q=>q.alive&&q.para&&!q.hide);if(!c)return;
-  const br=c.r+(c.s==='w'?1:-1),bk=[-1,1].map(d=>ok(br,wrap(c.c+d))&&G[br][wrap(c.c+d)]).filter(x=>x);
-  if(bk.length){
-     const t = bk.includes(p)?p:bk[0];
-     burst(c.r,c.c,'big');kill(c,true);
-     t.para=1;c.para=0;
-  }
+const ctSide=()=>['w','b'].find(c=>has(c,17));
+const ctBack=c=>{const br=c.r+(c.s==='w'?1:-1);return[-1,1].map(d=>ok(br,wrap(c.c+d))?G[br][wrap(c.c+d)]:null).filter(x=>x&&x.alive&&!x.hide)};
+async function ctKill(h,heir){
+  const cs=ctSide();
+  if(cs&&h.s!==cs&&await chkImmunity(cs,h))return;
+  burst(h.r,h.c,'big');h.para=0;kill(h,false);S.ct_dead=null;heir.para=1;sync();
 }
-async function epi(q,p){
-  const o=q.s;if(!rdy(o,4)||q.hide||!q.alive||imm(p.s))return 0;
+async function ctMove(p){
+  if(!p.alive||p.hide||imm(p.s))return;
+  if(p.para){const b=ctBack(p);if(b.length)await ctKill(p,b.find(x=>x.s!==p.s)||b[0]);return}
+  const h=P.find(q=>q.alive&&q.para&&!q.hide);
+  if(h&&ctBack(h).includes(p))await ctKill(h,p);
+}
+async function epi(q,p,m){
+  const o=q.s;if(!rdy(o,4)||q.hide||!q.alive||imm(p.s)||stuck(q))return 0;
   const cs=D.map(([a,b])=>[q.r+a,wrap(q.c+b)]).filter(([y,x])=>ok(y,x)&&!G[y][x]).map(([y,x])=>y*10+x);
-  if(!cs.length||!await want(o,'King Crimson — Epitaph: antecipar o golpe e mover a peça ameaçada 1 casa?'))return 0;
+  if(!cs.length||!await want(o,'King Crimson — Epitaph: antecipar o golpe e mover a peça ameaçada 1 casa?',(m&&m.taken.length>1)||q.k?1:.6))return 0;
   if(await gerCtr(p.s,'o Epitaph')){cd(o,4,6);return 0}
   const n=await ch(o,'Epitaph: escolha a casa vaga para onde a peça foge.',x=>cs.includes(x));if(n==null)return 0;
   await sc(o,4);cd(o,4,6);
-  const origQ = q.r*10 + q.c;
+  
   await put(q,n);
   sync();
-  return origQ;
+  return 1;
 }
 
 async function triggerDelayedBombs() {
@@ -653,23 +716,23 @@ async function triggerDelayedBombs() {
 async function play(m){
   const p=m.p,tk=[],info={tk,promo:0,expl:0};
   if(S.fric[turn]){
-    let[dr,dc]=dirh(m.path[m.path.length-2]||m.path[0],m.path[m.path.length-1]);
+    const lp=m.path[m.path.length-1];let[dr,dc]=lp.length>2?[lp[2],lp[3]]:dirh(m.path[m.path.length-2]||m.path[0],lp);
     if(dr||dc){let cy=m.to[0],cx=m.to[1];while(ok(cy+dr,cx+dc)&&!G[cy+dr][wrap(cx+dc)]){cy+=dr;cx+=dc}m.to=[cy,wrap(cx)];if(!ok(cy+dr,cx+dc))m.die=1;}S.fric[turn]=0;
   }
   let stop=0;
   for(let i=1;i<m.path.length&&!stop;i++){
-    const[y,x]=m.path[i],[y0,x0]=[p.r,p.c],[dr,dc]=dirh([y0,x0],[y,x]),vs=[];
+    const[y,x,hr,hc]=m.path[i],[y0,x0]=[p.r,p.c],[dr,dc]=hr!==undefined?[hr,hc]:dirh([y0,x0],[y,x]),vs=[];
     for(let yy=y0+dr,xx=x0+dc;;yy+=dr,xx+=dc){const q=G[yy][wrap(xx)];if(q&&q!==p&&m.taken.includes(q))vs.push(q);if(yy===y)break}
-    G[p.r][p.c]=null;p.r=y;p.c=wrap(x);G[y][p.c]=p;hop(p);
+    G[p.r][p.c]=null;p.r=y;p.c=wrap(x);G[y][p.c]=p;hop(p,Math.abs(x-x0)!==Math.abs(y-y0));
     await sleep(m.taken.length?340:260);
     for(const q of vs){
-      const ep = await epi(q,p);
+      const ep = await epi(q,p,m);
       if(ep){
-          m.to = [ep/10|0, ep%10];
+          m.to=[p.r,p.c];
           stop=1; break;
       }
-      tk.push(q);burst(q.r,q.c);kill(q,true);
-      if(q.para){if(imm(p.s)){q.para=0;S.ct_dead=q.s}else{p.para=1;q.para=0}}
+      const wp=q.para;q.para=0;tk.push(q);burst(q.r,q.c);kill(q,true);
+      if(wp){if(imm(p.s))S.ct_dead=ctSide();else p.para=1}
       if(q.bomb){
         if(imm(p.s)){
             S.pending_bombs.push({captor: p, type: q.bomb, owner: q.s, bx: q.r, by: q.c});
@@ -690,7 +753,7 @@ async function play(m){
   }
   if(m.die){burst(p.r,p.c,'big');kill(p,true);return info;}
   if(!p.k&&p.r===(p.s==='w'?0:9)){p.k=1;info.promo=1;burst(p.r,p.c);burst(p.r,p.c,'big')}
-  await land(p);if(!imm(p.s)&&tk.some(q=>q.trap))p.trap=1;if(!imm(p.s))checkPara(p);
+  await land(p);if(!imm(p.s)&&tk.some(q=>q.trap))p.trap=1;await ctMove(p);
   if(tk.length>1){shake();combo(tk.length)}
   sync();return info;
 }
@@ -711,25 +774,22 @@ const snap=()=>P.map(p=>[p.alive,p.r,p.c,p.k,p.bomb,p.para,p.trap,p.hide]);
 
 async function cdRev(c,pre,opp){
   if(!rdy(c,2))return;
-  const q=P.find((p,i)=>p.s===c&&!p.clone&&pre[i]&&pre[i][0]&&!p.alive);
-  if(!q||!await want(c,'Crazy Diamond: restaurar a peça destruída?'))return;
-  
-  if(opp && await gerCtr(opp, 'a Restauração do Crazy Diamond')) {
-    cd(c, 2); 
-    return;
-  }
-  const rows=c==='w'?[9,8,7,6,5,4,3,2,1,0]:[0,1,2,3,4,5,6,7,8,9];
-  for(const r of rows)for(let x=9;x>=0;x--)if((r+x)%2&&!G[r][x]){await sc(c,2);cd(c,2);q.alive=1;q.hide=0;q.bomb=0;q.r=r;q.c=x;G[r][x]=q;sync();burst(r,x);await land(q);return}
+  const dd=P.filter((p,i)=>p.s===c&&!p.clone&&pre[i]&&pre[i][0]&&!p.alive),q=dd.find(x=>x.k)||dd[0];
+  if(!q||!await want(c,'Crazy Diamond: restaurar a peça destruída?',1))return;
+  if(opp&&await gerCtr(opp,'a Restauração do Crazy Diamond')){cd(c,2);return}
+  const cells=behindCells(c,q);if(!cells.length)return;
+  const n=H(c)?await ch(c,'Crazy Diamond: escolha a casa vaga (atrás da sua peça mais avançada).',x=>cells.includes(x)):aiCell(c,cells,q);if(n==null)return;
+  await sc(c,2);cd(c,2);q.alive=1;q.hide=0;q.bomb=0;q.bx=0;q.trap=0;q.tng=0;q.r=n/10|0;q.c=n%10;G[q.r][q.c]=q;sync();burst(q.r,q.c);await land(q);
 }
 async function react(o,m,pre,info,ua){
   const s=opp(o);
   if(!info.ts){await cdRev(s,pre,o);await cdRev(o,pre,s)}
   if(rdy(o,11)&&info.tk.length){
-    if(!await want(o,'Wonder of U: anular e destruir agressor?'))return 0;
+    if(!await want(o,'Wonder of U: anular e destruir agressor?',.9))return 0;
     if(await gerCtr(s,'a Calamidade do Wonder of U')){cd(o,11);return 0}
     await sc(o,11);Object.assign(S.used,ua||{});cd(o,11);restore(pre);burst(m.p.r,m.p.c,'big');kill(m.p, false);sync();return 1}
   if(rdy(o,5)&&!info.stand){
-    if(!await want(o,'GER: anular ação inteira do oponente?'))return 0;
+    if(!await want(o,'GER: anular ação inteira do oponente?',info.tk.length||info.promo?.95:.05))return 0;
     await sc(o,5);Object.assign(S.used,ua||{});cd(o,5);S.free[o]=1;restore(pre);return 1}
   return 0;
 }
@@ -745,7 +805,7 @@ async function exec(m){const g0=gid;if(stuck(m.p)||m.p.hide)return;
   if(!over&&await react(o,m,pre,info,ua)){S.ex[s]=0;fz(0);await triggerDelayedBombs();return next(s,1)}
   await next(s);
 }
-async function next(s,f){
+async function next(s,f){P.forEach(p=>{if(p.s===s&&p.tng===1)p.tng=0});
   S.mih[s]=0;
   S.free[s]=0;
   const o=opp(s);let nx=o;
@@ -765,27 +825,30 @@ async function next(s,f){
 async function armBomb(s){
   if(!rdy(s,3)||P.some(p=>p.alive&&p.s===s&&p.bomb))return;
   const a=P.filter(p=>p.alive&&!p.hide&&p.s===s);if(!a.length)return;
+  if(!H(s)){const en=opp(s),nb=p=>D.map(([x,y])=>ok(p.r+x,p.c+y)&&G[p.r+x][wrap(p.c+y)]).filter(z=>z&&z!==p),b=a.map(p=>[nb(p).filter(z=>z.s===en).length*1.2+(s==='b'?p.r:9-p.r)*.2-(p.k?2:0)+Math.random()*.6,p]).sort((x,y)=>y[0]-x[0])[0][1];
+    b.bomb=nb(b).filter(z=>z.s===en).length>nb(b).filter(z=>z.s===s).length?2:1;sync();return}
   const n=await ch(s,'Killer Queen: escolha EM SEGREDO a peça que levará a bomba.',ownP(s));
   const t=await pickOpt(s,'Killer Queen: qual bomba?',[['1','Primeira Bomba (recarga 4)'],['2','Sheer Heart Attack (recarga 6 · explode as 4 diagonais)']]);
   (n!=null?pc(n):rnd(a)).bomb=+t;sync();
 }
 async function checkPassivesAndBegin(who,real){
-  if(S.ct_dead){
+  if(S.ct_dead&&S.ct_dead===who){
     const s=S.ct_dead;S.ct_dead=null;
-    if(H(s)){
-      const a=await ch(s,'Cheap Trick: hospedeiro morreu! Escolha uma nova peça (sua ou inimiga).',n=>!!pc(n),false);
-      if(a!=null)pc(a).para=1;
-    }else rnd(P.filter(p=>p.alive)).para=1;
+    if(!P.some(p=>p.alive&&p.para)){
+      if(H(s)){const a=await ch(s,'Cheap Trick: o hospedeiro morreu! Escolha uma nova peça para infectar.',n=>{const p=pc(n);return !!p&&!p.hide});if(a!=null)pc(a).para=1}
+      else{const f=P.filter(p=>p.alive&&!p.hide&&p.s!==s);if(f.length)rnd(f).para=1}
+      sync();
+    }
   }
   return begin(who,real);
 }
 
 async function runStand(me){
   const pre=snap(),ss={ex:{...S.ex},mih:{...S.mih},st:{...S.st},ws_st:{...S.ws_st},used:{...S.used},ws_used:{...S.ws_used},forced:{...S.forced},trapSq:S.trapSq,mn:{...S.mn},free:{...S.free}, pending_bombs:S.pending_bombs},o=opp(me),id=sid(me);
-  const r=await useStand(me);
+  CUR=id;const m0=matv(o);const r=await useStand(me);
   if(!r||over)return r;
   if(r===5)return 5;
-  if(rdy(o,5)&&await want(o,'GER: anular Stand oponente?')){
+  if(rdy(o,5)&&await want(o,'GER: anular Stand oponente?',matv(o)-m0<=-2.5?1:(GERP[id]??.5))){
     await sc(o,5);Object.assign(S,ss);restore(pre);fz(0);cd(me,id);cd(o,5);S.free[o]=1;return 4}
   await react(o,null,pre,{tk:[],promo:0,stand:1,ts:imm(me)});
   return r;
@@ -801,7 +864,7 @@ async function begin(who,real){
     await armBomb(who);
     S[`md_${who}`]=snap_full();
     for (const p of P.filter(p=>p.s===who)) {
-      if(p.tng)p.tng--;
+      if(p.tng===2)p.tng=1;
       if(p.clone){p.clone--;if(p.clone===0)kill(p,true);}
       if(p.hide){p.hide--;if(p.hide===0){
         await retPres(p);
@@ -817,29 +880,30 @@ async function begin(who,real){
   status();
   if(real&&!over&&!S.skip[who]){
     const o=opp(who);
-    if(rdy(o,29) && S[`md_${o}`] && (H(o) ? await want(o, 'Mandom: rebobinar para o início do seu turno anterior?') : Math.random()<0.5)){
+    if(rdy(o,29) && S[`md_${o}`] && (H(o) ? await want(o, 'Mandom: rebobinar para o início do seu turno anterior?') : aiMandom(o,who))){
       await sc(o,29);
       if(rdy(who,5)&&(H(who)?await want(who,'GER: anular o Mandom (Retorno ao Zero)?'):Math.random()<.85)){
         await sc(who,5);cd(o,29,6);cd(who,5);S.free[who]=1;
       }else{restore_full(S[`md_${o}`]);cd(o,29,6);return begin(o,2)}
     }
     const id=PRE.find(i=>rdy(o,i));
-    if(id&&(H(o)?await want(o,id===16?'The World: pular o turno inimigo?':'Heaven’s Door: comandar peça inimiga?'):Math.random()<.3)){
+    if(id&&(H(o)?await want(o,id===16?'The World: pular o turno inimigo?':'Heaven’s Door: comandar peça inimiga?'):aiPre(o,who,id))){
       if(id===16){await sc(o,16,1500);cd(o,16);fz(1);S.tw[o]=1;S.free[o]=1;return next(who,1)}
-      const a=await ch(o,'Heaven’s Door: escolha peça alvo.',n=>{const p=pc(n);return !!p&&p.s===who&&fmoves(p).length>0});
+      const a=await ch(o,'Heaven’s Door: escolha peça alvo.',n=>{const p=pc(n);return !!p&&p.s===who&&fmoves(p).length>0});AIA=0;AIP.length=0;
       if(a!=null){await sc(o,8);S.forced[who]=pc(a);cd(o,8);sync()}
     }
   }
   if(S.skip[who]){S.skip[who]=0;return next(who,1);}
   busy=0;L=legal(who).filter(m=>!stuck(m.p)&&!m.p.hide);sync();
+  if(!L.length&&P.some(p=>p.alive&&p.s===who&&p.tng)){stt.textContent='Peças emaranhadas — turno perdido.';await sleep(900);return next(who,1)}
   if(!P.some(p=>p.alive&&p.s===who)||!L.length)return finish(who);
   status();paint();if(!H(who))aiTurn();
 }
 async function aiTurn(){
-  const g=gid;busy=1;status();await sleep(550);if(g!==gid)return;
-  const w=S.ws_st.b&&!S.ws_used.b&&R[S.ws_st.b.id]&&!PAS.includes(S.ws_st.b.id)&&!REA.includes(S.ws_st.b.id)&&Math.random()<.4,id=w?S.ws_st.b.id:currentStId('b');
-  if((w||!S.used.b)&&!PAS.includes(id)&&!REA.includes(id)&&turnN>1&&(w||Math.random()<.3)){
-    S.ws_act=w?'b':0;const r=await runStand('b');S.ws_act=0;if(over||g!==gid)return;if(r===5)return begin('b',false);if(r===3||r===4)return await next('b');L=legal('b');if(!L.length)return begin('b',false);
+  const g=gid,me=turn;busy=1;status();await sleep(550);if(g!==gid)return;
+  if(turnN>1){
+    const o=aiStandPick(me);
+    if(o){AIP.length=0;AIP.push(...o.plan);AIA=1;S.ws_act=o.w?me:0;const r=await runStand(me);AIA=0;AIP.length=0;S.ws_act=0;if(over||g!==gid)return;if(r===5)return begin(me,false);if(r===3||r===4)return await next(me);L=legal(me);if(!L.length)return begin(me,false)}
   }
   exec(aiPick(L));
 }
